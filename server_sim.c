@@ -3,7 +3,43 @@
 #include <stdlib.h>    
 #include <getopt.h>
 #include <pthread.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
+#define MYMSGLEN 2000
+#define BUF_SIZE 1500
+
+enum type_msg {INIT, INIT_OK, MSG_MONTANT, MSG_DESCENDANT, END, NB_TYPE_MESSAGE};
+
+struct rcv_thread_arg{
+  int sock; 
+  int freq;
+  size_t total_clients;
+  size_t size; 
+};
+
+struct send_thread_arg{
+  int sock;
+  int freq;
+  size_t total_clients;
+  size_t size;
+  struct sockaddr** tab_connected_clients;
+};
+
+struct msg{
+  enum type_msg type;
+  char data[BUF_SIZE-sizeof(enum type_msg)];
+};
+
+struct sim_thread_arg{
+  size_t n_object;
+  int freq;
+};
+
+struct sim_object{
+  double pos[3];
+  double speed[3];
+};
 
 void print_help(int argc, char **argv){
   printf("usage: %s [options]\n",argv[0]);
@@ -18,8 +54,46 @@ void print_help(int argc, char **argv){
   printf("    --freq_sim=20 la fréquence à laquelle la simulation se joue\n");
 }
 
+
+void* send_thread_function(void* arg){
+
+}
+
 void* rcv_thread_function(void* arg){
-  
+  struct rcv_thread_arg args = *(struct rcv_thread_arg*)arg;
+  int sock = args.sock;
+  int freq = args.freq;
+  size_t total_clients = args.total_clients;
+  size_t size = args.size;
+
+
+
+  int total_connected_clients = 0;
+  struct sockaddr ** tab_connected_clients = malloc(sizeof(struct sockaddr *) * total_clients);
+  while (total_connected_clients < total_clients) {
+    struct msg msg;
+    struct sockaddr peer_addr;
+    recvfrom(sock, &msg, sizeof(msg), 0, &peer_addr, NULL);
+    if(msg.type == INIT){
+      tab_connected_clients[total_connected_clients] = &peer_addr;
+      total_connected_clients++;
+      struct msg reply;
+      reply.type = INIT_OK;
+      sendto(sock, &reply, sizeof(reply), 0, &peer_addr, NULL);
+    }
+  }
+  pthread_t send_thread;
+  struct send_thread_arg thread_arg;
+  thread_arg.sock = sock;
+  thread_arg.freq = freq;
+  thread_arg.size = size;
+  thread_arg.tab_connected_clients = tab_connected_clients;
+  pthread_create(&send_thread, NULL, send_thread_function, &thread_arg);
+
+  struct msg msg;
+  while(1){
+    recvfrom(sock, &msg, sizeof(msg), 0, NULL, NULL);
+  }
 }
 
 void* sim_thread_function(void* arg){
@@ -153,8 +227,50 @@ int main(int argc, char **argv){
   printf("nombre d'objets simulés : %li\n", n_sim_object);
   printf("la fréquence de simulation (en déplacements simulés par seconde) est de : %i\n", sim_freq);
  
-  pthread_create(&first_rcv_thread, NULL, rcv_thread_function, NULL);
-  pthread_create(&second_rcv_thread, NULL, rcv_thread_function, NULL);
-  pthread_create(&sim_thread, NULL, sim_thread_function, NULL);
+
+
+  struct sockaddr_in server_addr1;
+  server_addr1.sin_family = AF_INET;
+  server_addr1.sin_addr.s_addr = inet_addr("localhost");
+  server_addr1.sin_port = htons(port);
+  
+
+  int sock1 = socket(PF_INET,SOCK_DGRAM,0);
+  if(bind(sock1,(struct sockaddr *)&server_addr1,sizeof(server_addr1)) == -1){
+    perror("bind");
+    exit(1);
+  }
+
+
+  struct rcv_thread_arg first_thread_arg;
+  first_thread_arg.sock = sock1;
+  first_thread_arg.freq = freq1;
+  first_thread_arg.size = size1;
+  first_thread_arg.total_clients = total_clients;
+  pthread_create(&first_rcv_thread, NULL, rcv_thread_function, &first_thread_arg);
+
+  struct sockaddr_in server_addr2;
+  server_addr2.sin_family = AF_INET;
+  server_addr2.sin_addr.s_addr = inet_addr("localhost");
+  server_addr2.sin_port = htons(port + 1);
+  
+
+  int sock2 = socket(PF_INET,SOCK_DGRAM,0);
+  if(bind(sock2,(struct sockaddr *)&server_addr2,sizeof(server_addr2)) == -1){
+    perror("bind");
+    exit(1);
+  }
+
+  struct rcv_thread_arg second_thread_arg;
+  second_thread_arg.sock = sock2;
+  second_thread_arg.freq = freq2;
+  second_thread_arg.size = size2;
+  second_thread_arg.total_clients = total_clients;
+  pthread_create(&second_rcv_thread, NULL, rcv_thread_function, &second_thread_arg);
+
+  struct sim_thread_arg sim_arg;
+  sim_arg.freq = sim_freq;
+  sim_arg.n_object = n_sim_object;
+  pthread_create(&sim_thread, NULL, sim_thread_function, &sim_arg);
   pthread_join(sim_thread,NULL);
 }
