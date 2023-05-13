@@ -156,4 +156,5 @@ int main(int argc, char **argv){
   pthread_create(&first_rcv_thread, NULL, rcv_thread_function, NULL);
   pthread_create(&second_rcv_thread, NULL, rcv_thread_function, NULL);
   pthread_create(&sim_thread, NULL, sim_thread_function, NULL);
+  pthread_join(sim_thread,NULL);
 }
