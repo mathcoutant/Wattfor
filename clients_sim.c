@@ -66,21 +66,6 @@ void *thread_receiving_function(void *arg) {
   }
 }
 
-void *thread_receiving_function(void *arg) {
-  struct receive_thread_args args = *(struct receive_thread_args *)arg;
-
-  struct msg msg;
-  while (1)
-  {
-    recvfrom(args.sock, &msg, sizeof(msg), 0, NULL, NULL);
-    if (msg.type == END)
-    {
-      printf("The server ended the communication.");
-      exit(0);
-    }
-  }
-}
-
 void *thread_sending_function(void *arg)
 {
   struct send_thread_args args = *(struct send_thread_args *)arg;

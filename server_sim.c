@@ -104,9 +104,12 @@ void calculate_square_distance(int x1, int y1, int z1, int x2, int y2, int z2){
     // Faire quelque chose avec distance_carre,TODO peut etre mettre l'ecriture dans un fichier pour eviter de polluer le terminal
     printf("Distance au carre : %d\n", distance_carre);
 }
+
 void* sim_thread_function(void* arg){
-  int nb_objets_simules = arg.simulated;
-  int frequence_simulation = arg.freq_sim;
+  struct sim_thread_arg args = *(struct sim_thread_arg*)arg;
+
+  int nb_objets_simules = args.n_object;
+  int frequence_simulation = args.freq;
   int pos_x_y_z[nb_objets_simules];
   int speed_x_y_z[nb_objets_simules];
 
@@ -125,7 +128,7 @@ void* sim_thread_function(void* arg){
     }
 
     for (int i=0; i <nb_objets_simules; i++){
-      for (int j= i+1; j< nb_objets_simules; j==){
+      for (int j= i+1; j< nb_objets_simules; j++){
 	calculate_square_distance(
 				  pos_x_y_z[i], pos_x_y_z[i+1], pos_x_y_z[i+2],
 				  pos_x_y_z[j], pos_x_y_z[j+1], pos_x_y_z[j+2]
