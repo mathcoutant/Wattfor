@@ -43,12 +43,27 @@ void print_help(int argc, char **argv)
   printf("usage: %s [options]\n", argv[0]);
   printf("  options:\n");
   printf("    -H --host='102.10.12.189' le nom du host du serveur\n");
-  printf("    -p --port=4096 port sur lequel écouter\n");
+  printf("    -p --port=4096 port sur lequel ecouter\n");
   printf("    -n --nClients=100 le nombre de clients que le programme doit simuler\n");
-  printf("    --freq1=20 le nombre de messages par seconde à envoyer sur le premier port\n");
-  printf("    --freq2=20 le nombre de messages par seconde à envoyer sur le deuxième port\n");
-  printf("    --size1=40 la taille des messages en octets à envoyer sur le premier port\n");
-  printf("    --size2=217 la taille des messages en octets à envoyer sur le deuxième port\n");
+  printf("    --freq1=20 le nombre de messages par seconde a envoyer sur le premier port\n");
+  printf("    --freq2=20 le nombre de messages par seconde a envoyer sur le deuxieme port\n");
+  printf("    --size1=40 la taille des messages en octets a envoyer sur le premier port\n");
+  printf("    --size2=217 la taille des messages en octets a envoyer sur le deuxieme port\n");
+}
+
+void *thread_receiving_function(void *arg) {
+  struct receive_thread_args args = *(struct receive_thread_args *)arg;
+
+  struct msg msg;
+  while (1)
+  {
+    recvfrom(args.sock, &msg, sizeof(msg), 0, NULL, NULL);
+    if (msg.type == END)
+    {
+      printf("The server ended the communication.");
+      exit(0);
+    }
+  }
 }
 
 void *thread_receiving_function(void *arg) {
@@ -138,21 +153,21 @@ int main(int argc, char *argv[])
       {0, 0, 0, 0},
   };
 
-  // boucle dans laquelle on récupère les options
+  // boucle dans laquelle on recupere les options
   while (1)
   {
 
-    // index modifié par getopt_long(), permet de savoir quelle est l'option longue récupérée
+    // index modifie par getopt_long(), permet de savoir quelle est l'option longue recuperee
     int option_index = 0;
     int c = getopt_long(argc, argv, "n:p:hH:", long_options, &option_index);
 
-    // si il n'y a plus d'options à récupérer, on quitte la boucle !
+    // si il n'y a plus d'options a recuperer, on quitte la boucle !
     if (c == -1)
       break;
 
     switch (c)
     {
-    // cas des options longues sans équivalents courts
+    // cas des options longues sans equivalents courts
     case 0:
       switch (option_index)
       {
@@ -160,7 +175,7 @@ int main(int argc, char *argv[])
         freq1 = atoi(optarg);
         if (freq1 <= 0)
         {
-          printf("the frequency must an int superior to 0\n");
+          printf("the frequency must be an int superior to 0\n");
           exit(1);
         }
         break;
@@ -168,7 +183,7 @@ int main(int argc, char *argv[])
         freq2 = atoi(optarg);
         if (freq2 <= 0)
         {
-          printf("the frequency must an int superior to 0\n");
+          printf("the frequency must be an int superior to 0\n");
           exit(1);
         }
         break;
@@ -224,7 +239,7 @@ int main(int argc, char *argv[])
   }
 
   // Print the options
-  printf("Client lancé avec les paramètres suivants :\n");
+  printf("Client lance avec les parametres suivants :\n");
   printf("host : %s\n", host);
   printf("port : %i\n", port);
   printf("nombre de clients : %i\n", nb_clients);
@@ -253,5 +268,5 @@ int main(int argc, char *argv[])
     pthread_create(&tid, NULL, thread_sending_function, &args1);
     pthread_create(&tid, NULL, thread_sending_function, &args2);
   }
-  pthread_join(tid, NULL); // Pour éviter que main() ne sorte et tue tous les threads lancés
+  pthread_join(tid, NULL); // Pour eviter que main() ne sorte et tue tous les threads lances
 }
