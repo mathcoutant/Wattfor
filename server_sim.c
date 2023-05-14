@@ -1,3 +1,4 @@
+#include <netinet/in.h>
 #include <stddef.h>
 #include <stdio.h>    
 #include <stdlib.h>    
@@ -7,25 +8,29 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+#include <signal.h>
 
 #define MYMSGLEN 2000
 #define BUF_SIZE 1500
+#define S_TO_US 1000000
 
+struct sockaddr ** tab_connected_clients;
+size_t total_clients = 100;
+int sock1;
 enum type_msg {INIT, INIT_OK, MSG_MONTANT, MSG_DESCENDANT, END, NB_TYPE_MESSAGE};
 
 struct rcv_thread_arg{
   int sock; 
   int freq;
-  size_t total_clients;
   size_t size; 
 };
 
 struct send_thread_arg{
   int sock;
   int freq;
-  size_t total_clients;
   size_t size;
-  struct sockaddr** tab_connected_clients;
 };
 
 struct msg{
@@ -58,38 +63,62 @@ void print_help(int argc, char **argv){
 
 
 void* send_thread_function(void* arg){
-  return NULL;
+  printf("send thread created\n");
+  struct send_thread_arg args = *(struct send_thread_arg*)arg;
+  int sock = args.sock;
+  int freq = args.freq;
+  size_t size = args.size;
+  socklen_t peer_addr_len = sizeof(struct sockaddr);
+  
+
+  while (1) {
+    for (int i = 0; i < total_clients; i++) {
+      struct msg msg;
+      msg.type = MSG_DESCENDANT;
+      memset(&msg.data,'A', size);
+      sendto(sock, &msg,sizeof(msg.type) + strlen(msg.data),0, tab_connected_clients[i], peer_addr_len);
+    }
+      usleep(S_TO_US*1.0/freq);
+  }
+
 }
 
 void* rcv_thread_function(void* arg){
   struct rcv_thread_arg args = *(struct rcv_thread_arg*)arg;
   int sock = args.sock;
   int freq = args.freq;
-  size_t total_clients = args.total_clients;
   size_t size = args.size;
 
+  socklen_t peer_addr_len = sizeof(struct sockaddr);
 
+  printf("thread reception créé\n");
 
   int total_connected_clients = 0;
-  struct sockaddr ** tab_connected_clients = malloc(sizeof(struct sockaddr *) * total_clients);
+  tab_connected_clients = malloc(sizeof(struct sockaddr *) * total_clients);
   while (total_connected_clients < total_clients) {
     struct msg msg;
-    struct sockaddr peer_addr;
-    recvfrom(sock, &msg, sizeof(msg), 0, &peer_addr, NULL);
+    struct sockaddr * peer_addr = malloc(sizeof(struct sockaddr));
+    recvfrom(sock, &msg, sizeof(msg), 0, peer_addr, &peer_addr_len);
+
     if(msg.type == INIT){
-      tab_connected_clients[total_connected_clients] = &peer_addr;
+      tab_connected_clients[total_connected_clients] = peer_addr;
       total_connected_clients++;
       struct msg reply;
       reply.type = INIT_OK;
-      sendto(sock, &reply, sizeof(reply), 0, &peer_addr, NULL);
+      struct sockaddr_in * add = (struct sockaddr_in *) peer_addr;
+      printf("%s, %i\n",inet_ntoa(add->sin_addr),ntohs(add->sin_port));
+      
+      if(sendto(sock, &reply, sizeof(reply), 0, peer_addr, peer_addr_len) == -1){
+        perror("sendto");
+      }
     }
   }
+  printf("tout les messages d'init_ok envoyé\n");
   pthread_t send_thread;
   struct send_thread_arg thread_arg;
   thread_arg.sock = sock;
   thread_arg.freq = freq;
   thread_arg.size = size;
-  thread_arg.tab_connected_clients = tab_connected_clients;
   pthread_create(&send_thread, NULL, send_thread_function, &thread_arg);
 
   struct msg msg;
@@ -98,11 +127,11 @@ void* rcv_thread_function(void* arg){
   }
 }
 
-void calculate_square_distance(int x1, int y1, int z1, int x2, int y2, int z2){
+int calculate_square_distance(int x1, int y1, int z1, int x2, int y2, int z2){
     // Effectue le calcul de distance entre deux points et fait quelque chose avec le r�sultat
     int distance_carre = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1) + (z2 - z1) * (z2 - z1);
     // Faire quelque chose avec distance_carre,TODO peut etre mettre l'ecriture dans un fichier pour eviter de polluer le terminal
-    printf("Distance au carre : %d\n", distance_carre);
+  return distance_carre;
 }
 
 void* sim_thread_function(void* arg){
@@ -113,6 +142,8 @@ void* sim_thread_function(void* arg){
   int pos_x_y_z[nb_objets_simules];
   int speed_x_y_z[nb_objets_simules];
 
+  int dev_null = open("/dev/null",0);
+
   //Initialisation avec des valeurs aleatoires
   srand(time(NULL));
   for (int i = 0; i<nb_objets_simules; i++){
@@ -121,30 +152,42 @@ void* sim_thread_function(void* arg){
   }
 
   while (1){
-    //Calcul du temps ecoule depuis la derniere simulation d'objets, TODO je suis un peu perdue sur ce qu'il faut faire ici
-    int dt = calcul_temps_ecoule_depuis_derniere_simulation_objets();
+    double dt = 1.0/frequence_simulation;
     for (int i = 0; i <nb_objets_simules; i++){
       pos_x_y_z[i]+=dt*speed_x_y_z[i];
     }
 
     for (int i=0; i <nb_objets_simules; i++){
       for (int j= i+1; j< nb_objets_simules; j++){
-	calculate_square_distance(
+          int res = calculate_square_distance(
 				  pos_x_y_z[i], pos_x_y_z[i+1], pos_x_y_z[i+2],
 				  pos_x_y_z[j], pos_x_y_z[j+1], pos_x_y_z[j+2]
 				  );
+          // On écrit le résultat dans /dev/null
+          write(dev_null,&res,sizeof(res));
       }
     }
     //Pause pour respecter la frequence adequate de simulation des deplacements d'objet
-    usleep(1/frequence_simulation);
+    usleep(S_TO_US*1.0/frequence_simulation);
   }
   return NULL;
+}
+
+void end(int signum){
+  printf("Envoie messages de fin aux clients\n");
+  struct msg msg;
+  msg.type = END;
+  socklen_t peer_addr_len = sizeof(struct sockaddr);
+  for (int i = 0; i < total_clients; i++) {
+    sendto(sock1, &msg, sizeof(msg),0, tab_connected_clients[i],peer_addr_len); 
+  }
+  printf("messages de fin envoyés, fin du programme\n");
+  exit(1);
 }
 
 int main(int argc, char **argv){
 
   int port = 4096; // le premier port utilise par le serveur, le second est port+1
-  size_t total_clients = 100; // le nombre de clients que doit gerer le serveur
   int freq1 = 20; // les frequences des messages envoyes par le serveur sur chaque port 
   int freq2 = 20; 
   size_t size1 = 40;
@@ -269,14 +312,15 @@ int main(int argc, char **argv){
   printf("la frequence de simulation (en deplacements simules par seconde) est de : %i\n", sim_freq);
  
 
+  signal(SIGINT,end);
 
   struct sockaddr_in server_addr1;
   server_addr1.sin_family = AF_INET;
-  server_addr1.sin_addr.s_addr = inet_addr("localhost");
+  server_addr1.sin_addr.s_addr = inet_addr("127.0.0.1");
   server_addr1.sin_port = htons(port);
   
 
-  int sock1 = socket(PF_INET,SOCK_DGRAM,0);
+  sock1 = socket(PF_INET,SOCK_DGRAM,0);
   if(bind(sock1,(struct sockaddr *)&server_addr1,sizeof(server_addr1)) == -1){
     perror("bind");
     exit(1);
@@ -287,12 +331,11 @@ int main(int argc, char **argv){
   first_thread_arg.sock = sock1;
   first_thread_arg.freq = freq1;
   first_thread_arg.size = size1;
-  first_thread_arg.total_clients = total_clients;
   pthread_create(&first_rcv_thread, NULL, rcv_thread_function, &first_thread_arg);
 
   struct sockaddr_in server_addr2;
   server_addr2.sin_family = AF_INET;
-  server_addr2.sin_addr.s_addr = inet_addr("localhost");
+  server_addr2.sin_addr.s_addr = inet_addr("127.0.0.1");
   server_addr2.sin_port = htons(port + 1);
   
 
@@ -306,7 +349,6 @@ int main(int argc, char **argv){
   second_thread_arg.sock = sock2;
   second_thread_arg.freq = freq2;
   second_thread_arg.size = size2;
-  second_thread_arg.total_clients = total_clients;
   pthread_create(&second_rcv_thread, NULL, rcv_thread_function, &second_thread_arg);
 
   struct sim_thread_arg sim_arg;
@@ -315,3 +357,4 @@ int main(int argc, char **argv){
   pthread_create(&sim_thread, NULL, sim_thread_function, &sim_arg);
   pthread_join(sim_thread,NULL);
 }
+

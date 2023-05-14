@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #define BUF_SIZE 1500 // Taille MTU
+#define S_TO_US 1000000
 
 enum type_msg
 {
@@ -106,10 +107,11 @@ void *thread_sending_function(void *arg)
 
   // Sending messages
   struct msg msg;
-  init_msg.type = MSG_MONTANT;
+  msg.type = MSG_MONTANT;
+  memset(&msg.data,'A',args.taile);
   // TODO : construction de la data
   while (1) {
-    sleep(1 / args.frequence);
+    usleep(S_TO_US * 1.0 / args.frequence);
     sendto(sock, &msg, sizeof(enum type_msg) + strlen(msg.data), 0, (struct sockaddr *)&(args.server_addr), sizeof(args.server_addr));
   }
 }
