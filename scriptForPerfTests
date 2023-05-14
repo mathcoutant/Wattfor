@@ -1,0 +1,58 @@
+#!/bin/bash
+# Script to launch series of perf tests
+#  - on 2 to maxnumber machines 
+#  - with the size listed in listsize
+# The machines used are listed in hostnames
+# It is also possible to specify the following parameters
+#  - ntr (number of trains)
+#  - warmup
+#  - measurement
+#  - cooldown
+#  - sleepAfterCooldown
+#
+# Each test generates 2 or more file (depending on the number of
+# participants to the protocol) named for instance
+#   perf_cooldown_10_measurement_600_number_5_ntr_2_size_7000_warmup_300_concernedHost
+
+##########################################
+# Parameters of the different tests
+##########################################
+
+# Array of hostnames on which to launch the test
+# WARNING : if hostnames does not contain any localhost, then in the following ficname definition, 
+#           take off final '_'$i
+#hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-04' 'b313-05')
+#hostnames=('localhost' 'localhost' 'localhost' 'localhost' 'localhost')
+hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-04' 'b313-05' 'b313-06' 'b313-07' 'b313-08' 'b313-09' 'b313-10')
+serveraddress='127.0.0.1'
+serverport=4096
+# Maximum number of machines for simultaneous launch of perf code
+# NB : Cannot be more than the size hostname list
+maxnumber=10
+clientperhost=10
+clients=expr $maxnumber \* $clientperhost
+freq1=20 
+freq2=20 
+size1=40 
+size2client=114
+size2serv=217
+
+##########################################
+# Let's go for the different tests
+##########################################
+
+for ((number=0; number<=$maxnumber; number+=1))
+do
+  cmd=''
+  last=$number-1
+  client_opt="--clients $clientperhost --host $serveraddress --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2"
+  dist="\"cd Wattfor/ ; ./clients_sim $client_opt\""
+  cmd="$cmd (ssh ${hostnames[$last]} $dist );"
+  # we launch the test
+  echo -e "$cmd\n"
+  eval "$cmd"
+done
+
+opt=" --clients $clients --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2serv"
+sleep 1 
+./server_sim $opt 
