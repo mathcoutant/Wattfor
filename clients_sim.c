@@ -82,7 +82,7 @@ void *thread_sending_function(void *arg)
   // INIT messages
   struct msg init_msg;
   init_msg.type = INIT;
-  if (sendto(sock, &init_msg, sizeof(enum type_msg) + sizeof(strlen(init_msg.data)), 0, (struct sockaddr *) &(args.server_addr), sizeof(&(args.server_addr))) < 0)
+  if (sendto(sock, &init_msg, sizeof(enum type_msg) + sizeof(strlen(init_msg.data)), 0, (struct sockaddr*)&(args.server_addr), sizeof(args.server_addr)) < 0)
   {
     perror("Failed to send init message.\n");
     exit(1);
@@ -110,7 +110,7 @@ void *thread_sending_function(void *arg)
   // TODO : construction de la data
   while (1) {
     sleep(1 / args.frequence);
-    sendto(sock, &msg, sizeof(enum type_msg) + strlen(msg.data), 0, (struct sockaddr *) &(args.server_addr), sizeof(&(args.server_addr)));
+    sendto(sock, &msg, sizeof(enum type_msg) + strlen(msg.data), 0, (struct sockaddr *)&(args.server_addr), sizeof(args.server_addr));
   }
 }
 
