@@ -1,10 +1,12 @@
-#include <stdio.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdio.h>    
+#include <stdlib.h>    
+#include <getopt.h>
+#include <pthread.h>
 #include <sys/socket.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <getopt.h>
 
 #define BUF_SIZE 1500 // Taille MTU
 
@@ -49,6 +51,21 @@ void print_help(int argc, char **argv)
   printf("    --size2=217 la taille des messages en octets à envoyer sur le deuxième port\n");
 }
 
+void *thread_receiving_function(void *arg) {
+  struct receive_thread_args args = *(struct receive_thread_args *)arg;
+
+  struct msg msg;
+  while (1)
+  {
+    recvfrom(args.sock, &msg, sizeof(msg), 0, NULL, NULL);
+    if (msg.type == END)
+    {
+      printf("The server ended the communication.");
+      exit(0);
+    }
+  }
+}
+
 void *thread_sending_function(void *arg)
 {
   struct send_thread_args args = *(struct send_thread_args *)arg;
@@ -65,15 +82,16 @@ void *thread_sending_function(void *arg)
   // INIT messages
   struct msg init_msg;
   init_msg.type = INIT;
-  if (sendto(sock, &init_msg, sizeof(enum type_msg) + strlen(init_msg.data), NULL, &(args.server_addr), size(&(args.server_addr))) < 0)
+  if (sendto(sock, &init_msg, sizeof(enum type_msg) + sizeof(strlen(init_msg.data)), 0, (struct sockaddr *) &(args.server_addr), sizeof(&(args.server_addr))) < 0)
   {
-    perror("Failed to send message.\n");
+    perror("Failed to send init message.\n");
     exit(1);
   }
 
   // Server response
   struct msg init_ok_msg;
   struct sockaddr peer_addr;
+  printf("Wait for init_ok");
   recvfrom(sock, &init_ok_msg, sizeof(init_ok_msg), 0, &peer_addr, NULL);
   if (init_ok_msg.type != INIT_OK)
   {
@@ -92,35 +110,19 @@ void *thread_sending_function(void *arg)
   // TODO : construction de la data
   while (1) {
     sleep(1 / args.frequence);
-    sendto(sock, &init_msg, sizeof(enum type_msg) + strlen(init_msg.data), NULL, &(args.server_addr), size(&(args.server_addr)));
-  }
-}
-
-void *thread_receiving_function(void *arg)
-{
-  struct receive_thread_args args = *(struct receive_thread_args *)arg;
-
-  struct msg msg;
-  while (1)
-  {
-    recvfrom(args.sock, &msg, sizeof(msg), 0, NULL, NULL);
-    if (msg.type == END)
-    {
-      printf("The server ended the communication.");
-      exit(0);
-    }
+    sendto(sock, &msg, sizeof(enum type_msg) + strlen(msg.data), 0, (struct sockaddr *) &(args.server_addr), sizeof(&(args.server_addr)));
   }
 }
 
 int main(int argc, char *argv[])
 {
-  int port;
-  char host[30];
-  int nb_clients;
-  int freq1;
-  size_t size1;
-  int freq2;
-  size_t size2;
+  int port = 4096;
+  char host[30] = "localhost";
+  int nb_clients = 10;
+  int freq1 = 20;
+  size_t size1 = 40;
+  int freq2 = 20;
+  size_t size2 = 114;
 
   static int help_flag = 0;
 
@@ -225,11 +227,11 @@ int main(int argc, char *argv[])
   printf("Client lancé avec les paramètres suivants :\n");
   printf("host : %s\n", host);
   printf("port : %i\n", port);
-  printf("nombre de clients : %li\n", nb_clients);
+  printf("nombre de clients : %i\n", nb_clients);
   printf("fréquence des messages montants sur le port %i : %i\n", port, freq1);
   printf("taille des messages montants sur le port %i : %li\n", port, size1);
   printf("fréquence des messages montants sur le port %i : %i\n", port + 1, freq2);
-  printf("taille des messages montants sur le port %i : %i\n", port + 1, size2);
+  printf("taille des messages montants sur le port %i : %li\n", port + 1, size2);
 
   // Server addresses
   struct sockaddr_in server_addr1;

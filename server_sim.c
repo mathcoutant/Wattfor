@@ -56,7 +56,7 @@ void print_help(int argc, char **argv){
 
 
 void* send_thread_function(void* arg){
-
+  return NULL;
 }
 
 void* rcv_thread_function(void* arg){
@@ -97,7 +97,8 @@ void* rcv_thread_function(void* arg){
 }
 
 void* sim_thread_function(void* arg){
-
+  
+  return NULL;
 }
 
 int main(int argc, char **argv){
@@ -120,18 +121,18 @@ int main(int argc, char **argv){
   // un array qui contient les options du programme
   // si l'option est disponible en format court, la valeur de retour (dernière colonne)
   // vaut le caractère du format court
-    static struct option long_options[] = {
-      {"port",     required_argument, 0,  'p' },
-      {"clients",  required_argument, 0,  'n' },
-      {"freq1",    required_argument, 0,   0 },
-      {"freq2",    required_argument, 0,   0 },
-      {"size1",    required_argument, 0,   0 },
-      {"size2",    required_argument, 0,   0 },
-      {"simulated",required_argument, 0,   0 },
-      {"freq_sim", required_argument, 0,   0 },
-      {"help",     no_argument      , &help_flag,   1 },
-      {0,          0,                 0,   0 },
-    };
+  static struct option long_options[] = {
+    {"port",     required_argument, 0,  'p' },
+    {"clients",  required_argument, 0,  'n' },
+    {"freq1",    required_argument, 0,   0 },
+    {"freq2",    required_argument, 0,   0 },
+    {"size1",    required_argument, 0,   0 },
+    {"size2",    required_argument, 0,   0 },
+    {"simulated",required_argument, 0,   0 },
+    {"freq_sim", required_argument, 0,   0 },
+    {"help",     no_argument      , &help_flag,   1 },
+    {0,          0,                 0,   0 },
+  };
 
   // boucle dans laquelle on récupère les options
   while (1) {
