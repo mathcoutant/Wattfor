@@ -46,8 +46,8 @@ do
   cmd=''
   last=$number-1
   client_opt="--clients $clientperhost --host $serveraddress --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2"
-  dist="\"cd Wattfor/ ; ./clients_sim $client_opt\""
-  cmd="$cmd (ssh ${hostnames[$last]} $dist );"
+  dist="\"cd Wattfor/ ; ./clients_sim $client_opt > log.txt\""
+  cmd="$cmd (ssh ${hostnames[$last]} $dist &);"
   # we launch the test
   echo -e "$cmd\n"
   eval "$cmd"

@@ -119,7 +119,7 @@ void *thread_sending_function(void *arg)
 int main(int argc, char *argv[])
 {
   int port = 4096;
-  char host[30] = "localhost";
+  char host[30] = "127.0.0.1";
   int nb_clients = 10;
   int freq1 = 20;
   size_t size1 = 40;
