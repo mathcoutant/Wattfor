@@ -23,7 +23,7 @@
 #           take off final '_'$i
 #hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-04' 'b313-05')
 #hostnames=('localhost' 'localhost' 'localhost' 'localhost' 'localhost')
-hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-04' 'b313-05' 'b313-06' 'b313-07' 'b313-08' 'b313-09' 'b313-10')
+hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-05' 'b313-06' 'b313-07' 'b313-09' 'b313-10' 'b313-11' 'b313-12')
 serveraddress='127.0.0.1'
 serverport=4096
 # Maximum number of machines for simultaneous launch of perf code
@@ -46,7 +46,7 @@ do
   cmd=''
   last=$number-1
   client_opt="--clients $clientperhost --host $serveraddress --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2"
-  dist="\"cd Wattfor/ ; ./clients_sim $client_opt > log.txt\""
+  dist="\"cd $HOME/Wattfor/ ; ./clients_sim $client_opt > log.txt\""
   cmd="$cmd (ssh ${hostnames[$last]} $dist &);"
   # we launch the test
   echo -e "$cmd\n"
@@ -56,3 +56,4 @@ done
 opt=" --clients $clients --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2serv"
 sleep 1 
 ./server_sim $opt 
+
