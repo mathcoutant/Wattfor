@@ -11,6 +11,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <netdb.h>
 
 #define MYMSGLEN 2000
 #define BUF_SIZE 1500
@@ -47,6 +48,61 @@ struct sim_object{
   double pos[3];
   double speed[3];
 };
+
+
+int open_sock_server(int port){
+  int                      sfd, s;
+  char                     buf[BUF_SIZE];
+  ssize_t                  nread;
+  socklen_t                peer_addrlen;
+  struct addrinfo          hints;
+  struct addrinfo          *result, *rp;
+  struct sockaddr_storage  peer_addr;
+
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+  hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+  hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+  hints.ai_protocol = 0;          /* Any protocol */
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+
+
+  char sp[6];
+  sprintf(sp,"%d",port);
+  s = getaddrinfo(NULL, sp, &hints, &result);
+  if (s != 0) {
+    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+    exit(EXIT_FAILURE);
+  }
+
+  /* getaddrinfo() returns a list of address structures.
+     Try each address until we successfully bind(2).
+     If socket(2) (or bind(2)) fails, we (close the socket
+     and) try the next address. */
+
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sfd = socket(rp->ai_family, rp->ai_socktype,
+                 rp->ai_protocol);
+    if (sfd == -1)
+      continue;
+
+    if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
+      break;                  /* Success */
+
+    close(sfd);
+  }
+
+  freeaddrinfo(result);           /* No longer needed */
+
+  if (rp == NULL) {               /* No address succeeded */
+    fprintf(stderr, "Could not bind\n");
+    exit(EXIT_FAILURE);
+  }
+
+  return sfd;
+}
 
 void print_help(int argc, char **argv){
   printf("usage: %s [options]\n",argv[0]);
@@ -97,9 +153,12 @@ void* rcv_thread_function(void* arg){
   tab_connected_clients = malloc(sizeof(struct sockaddr *) * total_clients);
   while (total_connected_clients < total_clients) {
     struct msg msg;
-    struct sockaddr * peer_addr = malloc(sizeof(struct sockaddr));
-    recvfrom(sock, &msg, sizeof(msg), 0, peer_addr, &peer_addr_len);
-
+    struct sockaddr * peer_addr  = malloc(sizeof(struct sockaddr));
+    int nread = recvfrom(sock, &msg, sizeof(msg), 0, peer_addr, &peer_addr_len);
+    if(nread < 0) {
+      perror("recvfrom");
+      exit(EXIT_FAILURE);
+    }
     if(msg.type == INIT){
       tab_connected_clients[total_connected_clients] = peer_addr;
       total_connected_clients++;
@@ -314,17 +373,8 @@ int main(int argc, char **argv){
 
   signal(SIGINT,end);
 
-  struct sockaddr_in server_addr1;
-  server_addr1.sin_family = AF_INET;
-  server_addr1.sin_addr.s_addr = inet_addr("127.0.0.1");
-  server_addr1.sin_port = htons(port);
-  
 
-  sock1 = socket(PF_INET,SOCK_DGRAM,0);
-  if(bind(sock1,(struct sockaddr *)&server_addr1,sizeof(server_addr1)) == -1){
-    perror("bind");
-    exit(1);
-  }
+  int sock1 = open_sock_server(port);
 
 
   struct rcv_thread_arg first_thread_arg;
@@ -333,17 +383,9 @@ int main(int argc, char **argv){
   first_thread_arg.size = size1;
   pthread_create(&first_rcv_thread, NULL, rcv_thread_function, &first_thread_arg);
 
-  struct sockaddr_in server_addr2;
-  server_addr2.sin_family = AF_INET;
-  server_addr2.sin_addr.s_addr = inet_addr("127.0.0.1");
-  server_addr2.sin_port = htons(port + 1);
-  
 
-  int sock2 = socket(PF_INET,SOCK_DGRAM,0);
-  if(bind(sock2,(struct sockaddr *)&server_addr2,sizeof(server_addr2)) == -1){
-    perror("bind");
-    exit(1);
-  }
+
+  int sock2 = open_sock_server(port + 1);
 
   struct rcv_thread_arg second_thread_arg;
   second_thread_arg.sock = sock2;

@@ -7,6 +7,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <netdb.h>
+#include <sys/types.h>
 
 #define BUF_SIZE 1500 // Taille MTU
 #define S_TO_US 1000000
@@ -29,7 +31,8 @@ struct msg
 
 struct send_thread_args
 {
-  struct sockaddr_in server_addr;
+  char * host;
+  int port;
   int frequence;
   int taile;
 };
@@ -52,6 +55,58 @@ void print_help(int argc, char **argv)
   printf("    --size2=217 la taille des messages en octets a envoyer sur le deuxieme port\n");
 }
 
+int open_socket(char * hostname, int port){
+
+  struct addrinfo hints;
+  struct addrinfo *result, *rp;
+  int sfd, s, j;
+  size_t len;
+  ssize_t nread;
+  char buf[BUF_SIZE];
+
+  /* Obtain address(es) matching host/port */
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+  hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+  hints.ai_flags = 0;
+  hints.ai_protocol = 0;          /* Any protocol */
+
+  char str_port[6];
+  sprintf(str_port, "%d", port);
+  s = getaddrinfo(hostname, str_port, &hints, &result);
+  if (s != 0) {
+    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+    exit(EXIT_FAILURE);
+  }
+
+  /* getaddrinfo() returns a list of address structures.
+   *               Try each address until we successfully connect(2).
+   *                             If socket(2) (or connect(2)) fails,
+   *                             we (close the socket
+   *                                           and) try the next
+   *                                           address. */
+
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sfd = socket(rp->ai_family, rp->ai_socktype,
+        rp->ai_protocol);
+    if (sfd == -1)
+      continue;
+
+    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
+      break;                  /* Success */
+
+    close(sfd);
+  }
+
+  if (rp == NULL) {               /* No address succeeded */
+    fprintf(stderr, "Could not connect\n");
+    exit(EXIT_FAILURE);
+  }
+
+  freeaddrinfo(result);           /* No longer needed */
+  return sfd;
+}
 void *thread_receiving_function(void *arg) {
   struct receive_thread_args args = *(struct receive_thread_args *)arg;
 
@@ -61,7 +116,7 @@ void *thread_receiving_function(void *arg) {
     recvfrom(args.sock, &msg, sizeof(msg), 0, NULL, NULL);
     if (msg.type == END)
     {
-      printf("The server ended the communication.");
+      printf("The server ended the communication.\n");
       exit(0);
     }
   }
@@ -72,18 +127,13 @@ void *thread_sending_function(void *arg)
   struct send_thread_args args = *(struct send_thread_args *)arg;
 
   // Create socket
-  int sock;
-  sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock == -1)
-  {
-    printf("Could not create socket\n");
-    exit(-1);
-  }
+  int sock = open_socket(args.host,args.port);
 
   // INIT messages
   struct msg init_msg;
   init_msg.type = INIT;
-  if (sendto(sock, &init_msg, sizeof(enum type_msg) + sizeof(strlen(init_msg.data)), 0, (struct sockaddr*)&(args.server_addr), sizeof(args.server_addr)) < 0)
+  //if (sendto(sock, &init_msg, sizeof(enum type_msg) + sizeof(strlen(init_msg.data)), 0, (struct sockaddr*)&(args.server_addr), sizeof(args.server_addr)) < 0)
+  if (write(sock,&init_msg, sizeof(enum type_msg)) < 0)
   {
     perror("Failed to send init message.\n");
     exit(1);
@@ -92,11 +142,15 @@ void *thread_sending_function(void *arg)
   // Server response
   struct msg init_ok_msg;
   struct sockaddr peer_addr;
-  printf("Wait for init_ok");
-  recvfrom(sock, &init_ok_msg, sizeof(init_ok_msg), 0, &peer_addr, NULL);
+  printf("Wait for init_ok\n");
+  int nread = read(sock, &init_ok_msg, sizeof(init_ok_msg));
+  if( nread < 0){
+    perror("read");
+    exit(1);
+  }
   if (init_ok_msg.type != INIT_OK)
   {
-    printf("The server response was not of type INIT_OK.");
+    printf("The server response was not of type INIT_OK.\n");
     exit(1);
   }
 
@@ -112,7 +166,7 @@ void *thread_sending_function(void *arg)
   // TODO : construction de la data
   while (1) {
     usleep(S_TO_US * 1.0 / args.frequence);
-    sendto(sock, &msg, sizeof(enum type_msg) + strlen(msg.data), 0, (struct sockaddr *)&(args.server_addr), sizeof(args.server_addr));
+    send(sock, &msg, sizeof(enum type_msg) + strlen(msg.data), 0);
   }
 }
 
@@ -235,21 +289,11 @@ int main(int argc, char *argv[])
   printf("fréquence des messages montants sur le port %i : %i\n", port + 1, freq2);
   printf("taille des messages montants sur le port %i : %li\n", port + 1, size2);
 
-  // Server addresses
-  struct sockaddr_in server_addr1;
-  server_addr1.sin_family = AF_INET;
-  server_addr1.sin_addr.s_addr = inet_addr(host);
-  server_addr1.sin_port = htons(port);
-
-  struct sockaddr_in server_addr2;
-  server_addr2.sin_family = AF_INET;
-  server_addr2.sin_addr.s_addr = inet_addr(host);
-  server_addr2.sin_port = htons(port + 1);
 
   // Threads
   pthread_t tid = 0;
-  struct send_thread_args args1 = {server_addr1, freq1, size1};
-  struct send_thread_args args2 = {server_addr2, freq2, size2};
+  struct send_thread_args args1 = {host, port, freq1, size1};
+  struct send_thread_args args2 = {host, port+1, freq2, size2};
   for (int i = 0; i < nb_clients; i++)
   {
     pthread_create(&tid, NULL, thread_sending_function, &args1);

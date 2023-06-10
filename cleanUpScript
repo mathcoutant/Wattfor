@@ -1,0 +1,37 @@
+#!/bin/bash
+# Script to launch series of perf tests
+#  - on 2 to maxnumber machines 
+#  - with the size listed in listsize
+# The machines used are listed in hostnames
+# It is also possible to specify the following parameters
+#  - ntr (number of trains)
+#  - warmup
+#  - measurement
+#  - cooldown
+#  - sleepAfterCooldown
+#
+# Each test generates 2 or more file (depending on the number of
+# participants to the protocol) named for instance
+#   perf_cooldown_10_measurement_600_number_5_ntr_2_size_7000_warmup_300_concernedHost
+
+##########################################
+# Parameters of the different tests
+##########################################
+
+# Array of hostnames on which to launch the test
+# WARNING : if hostnames does not contain any localhost, then in the following ficname definition, 
+#           take off final '_'$i
+hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-05' 'b313-07')
+maxnumber=5
+
+for ((number=0; number<$maxnumber; number+=1))
+do
+  cmd=""
+  dist="\"killall clients_sim\""
+  cmd="$cmd (ssh ${hostnames[$number]} $dist &);"
+  # we launch the test
+  echo -e "$cmd\n"
+  eval "$cmd"
+done
+
+killall server_sim

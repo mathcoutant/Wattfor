@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to launch series of perf tests
-#  - on 2 to maxnumber machines 
+#  - on 2 to maxnumber machines
 #  - with the size listed in listsize
 # The machines used are listed in hostnames
 # It is also possible to specify the following parameters
@@ -19,41 +19,39 @@
 ##########################################
 
 # Array of hostnames on which to launch the test
-# WARNING : if hostnames does not contain any localhost, then in the following ficname definition, 
+# WARNING : if hostnames does not contain any localhost, then in the following ficname definition,
 #           take off final '_'$i
 #hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-04' 'b313-05')
 #hostnames=('localhost' 'localhost' 'localhost' 'localhost' 'localhost')
-hostnames=('b313-01' 'b313-02' 'b313-03' 'b313-05' 'b313-06' 'b313-07' 'b313-09' 'b313-10' 'b313-11' 'b313-12')
-serveraddress='127.0.0.1'
-serverport=4096
+hostnames=('b313-01' 'b313-03' 'b313-05' 'b313-06' 'b313-07' 'b313-08' 'b313-09' 'b313-10' 'b313-11' 'b313-12')
+serveraddress='b313-04'
+serverport=('4096' '4098' '4100' '4102' '4104' '4106' '4108' '4110')
+
 # Maximum number of machines for simultaneous launch of perf code
 # NB : Cannot be more than the size hostname list
 maxnumber=10
 clientperhost=10
-clients=expr $maxnumber \* $clientperhost
-freq1=20 
-freq2=20 
-size1=40 
+clients=100
+freq1=20
+freq2=20
+size1=40
 size2client=114
 size2serv=217
 
 ##########################################
 # Let's go for the different tests
 ##########################################
-
-for ((number=0; number<=$maxnumber; number+=1))
+for ((n_port=0; n_port<8; n_port+=1))
+do
+for ((number=0; number<$maxnumber; number+=1))
 do
   cmd=''
-  last=$number-1
-  client_opt="--clients $clientperhost --host $serveraddress --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2"
-  dist="\"cd $HOME/Wattfor/ ; ./clients_sim $client_opt > log.txt\""
-  cmd="$cmd (ssh ${hostnames[$last]} $dist &);"
+  client_opt="--clients $clientperhost --host $serveraddress --port ${serverport[$n_port]} --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2client"
+  dist="\"cd Wattfor/ ; ./clients_sim $client_opt\""
+  cmd="$cmd (ssh lgizard@${hostnames[$number]} $dist &);"
   # we launch the test
   echo -e "$cmd\n"
   eval "$cmd"
 done
-
-opt=" --clients $clients --port $serverport --freq1 $freq1 --freq2 $freq2 --size1 $size1 --size2 $size2serv"
-sleep 1 
-./server_sim $opt 
-
+done
+sleep 3600
